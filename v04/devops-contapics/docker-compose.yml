@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      retries: 5
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    # environment:
+    #   SPRING_PROFILES_ACTIVE: docker
+    #   CORS_ALLOWED_ORIGIN: "http://localhost:3000"
+    #   DB_HOST: db
+    #   DB_PORT: 5432
+    #   DB_NAME: contapics
+    #   DB_USERNAME: user
+    #   DB_PASSWORD: init1234
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    env_file:
+      - ./.env
+    # environment:
+    #   BACKEND_URL: "http://192.168.101.36:8080"
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    volumes:
+      - nginx-logs:/var/log/nginx
+      - nginx-cache:/var/cache/nginx
+      - nginx-run:/run
+      - ./frontend/env.template.js:/usr/share/nginx/html/env.template.js:ro
+
+
+volumes:
+  nginx-logs:
+  nginx-cache:
+  nginx-run:
+    

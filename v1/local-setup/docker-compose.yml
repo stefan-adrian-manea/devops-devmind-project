@@ -1,0 +1,83 @@
+version: "3.9"
+services:
+
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      interval: 10s
+      retries: 5
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"    
+      - "9001:9001"    
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    image: devops-contapics-backend:${TAG}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./.env
+
+  ocr-service:
+      build:
+        context: ./ocr-service
+        dockerfile: Dockerfile
+      container_name: ocr-service
+      image: devops-contapics-ocr:${TAG}
+      ports:
+        - "5001:5001"
+      environment:
+        - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+        - AWS_REGION=${AWS_REGION}
+        - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+        - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+        - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT}
+      depends_on:
+        - backend
+        - minio
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    image: devops-contapics-frontend:${TAG}
+    env_file:
+      - ./.env
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    volumes:
+      - nginx-logs:/var/log/nginx
+      - nginx-cache:/var/cache/nginx
+      - nginx-run:/run
+      - ./frontend/config.js:/usr/share/nginx/html/config.js:ro
+
+volumes:
+  nginx-logs:
+  nginx-cache:
+  nginx-run:
+  minio-data:
+    
