@@ -25,3 +25,9 @@ output "url_acces" {
   value = "http://${data.kubernetes_ingress_v1.app_ingress.spec[0].rule[0].host}"
    description = "URL Ingress Status"
 }
+
+
+output "minio_url" {
+  value = "http://minio-${terraform.workspace}.myapp.local"
+  description = "MinIO Consol"
+}

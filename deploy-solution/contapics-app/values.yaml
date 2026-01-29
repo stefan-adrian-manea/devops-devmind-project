@@ -35,7 +35,6 @@ ocr:
   env:
     region: "us-east-1"
   resources:
-# TODO: tobe tested
     requests:
       cpu: "100m"
       memory: "128Mi"
