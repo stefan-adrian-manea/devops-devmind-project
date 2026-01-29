@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-minio-config
+data:
+  MINIO_REGION: {{ .Values.minio.region | quote }}
+  MINIO_BUCKET_NAME: {{ .Values.minio.bucketName | quote }}

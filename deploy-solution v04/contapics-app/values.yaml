@@ -1,0 +1,46 @@
+database:
+  name: contapics
+  user: user
+  password: init1234
+  image: postgres:14
+  replicas: 1
+  persistence:
+      enabled: true
+      storage: 2Gi     
+      storageClass: null
+
+backend:
+  image: "devops-contapics-backend:latest"
+  replicas: 1
+  port: 8080
+  env:
+    springProfile: docker
+    corsOrigin: "*"
+  resources:
+    requests:
+      cpu: "200m"      
+      memory: "350Mi"  
+    limits:
+      cpu: "1000m"     
+      memory: "512Mi"
+
+frontend:
+  image: "devops-contapics-frontend:latest"
+  replicas: 1
+  port: 80
+  backendUrl: "http://myapp.local/api"
+  resources:
+      requests:
+        cpu: "40m"      
+        memory: "16Mi"  
+      limits:
+        cpu: "150m"     
+        memory: "64Mi"
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "myapp.local"
+  proxyBodySize: "10m"
+  backendPath: "/api/(.*)"
+  frontendPath: "/(.*)"
+

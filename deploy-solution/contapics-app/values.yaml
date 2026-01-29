@@ -2,20 +2,55 @@ database:
   name: contapics
   user: user
   password: init1234
-  image: postgres:14
+  image: postgres
   replicas: 1
+  tag: "14"
+  port: 5432
   persistence:
       enabled: true
       storage: 2Gi     
       storageClass: null
 
+minio:
+  image: "quay.io/minio/minio"
+  tag: "latest"
+  replicas: 1
+  rootUser: "minioadmin"
+  rootPassword: "minioadmin123"
+  region: "us-east-1"
+  bucketName: "photos"
+  ports:
+      api: 9000
+      console: 9001
+  persistence:
+    enabled: true
+    storage: 2Gi
+    storageClass: standard
+
+ocr:
+  image: "devops-contapics-ocr"
+  tag: "v1.0.0"
+  replicas: 1
+  port: 5001
+  env:
+    region: "us-east-1"
+  resources:
+# TODO: tobe tested
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
 backend:
-  image: "devops-contapics-backend:latest"
+  image: "devops-contapics-backend"
+  tag: "v1.0.0"
   replicas: 1
   port: 8080
   env:
     springProfile: docker
-    corsOrigin: "*"
+    corsOrigin: "http://myapp.local" 
   resources:
     requests:
       cpu: "200m"      
@@ -25,7 +60,8 @@ backend:
       memory: "512Mi"
 
 frontend:
-  image: "devops-contapics-frontend:latest"
+  image: "devops-contapics-frontend"
+  tag: "v1.0.0"
   replicas: 1
   port: 80
   backendUrl: "http://myapp.local/api"
@@ -40,7 +76,9 @@ ingress:
   enabled: true
   className: "nginx"
   host: "myapp.local"
+  minioHost: "minio.myapp.local"
   proxyBodySize: "10m"
   backendPath: "/api/(.*)"
   frontendPath: "/(.*)"
+  minioPath: "/(.*)"
 

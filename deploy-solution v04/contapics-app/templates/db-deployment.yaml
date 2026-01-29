@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: "{{ .Values.database.image }}:{{ .Values.database.tag }}"
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.database.image }}
+          imagePullPolicy: Never
           env:
             - name: POSTGRES_DB
               valueFrom:
@@ -35,7 +35,7 @@ spec:
                   name: {{ .Release.Name }}-postgres-secret
                   key: POSTGRES_PASSWORD
           ports:
-            - containerPort: {{ .Values.database.port }}
+            - containerPort: 5432
       volumes:
         - name: db-data
           {{- if .Values.database.persistence.enabled }}

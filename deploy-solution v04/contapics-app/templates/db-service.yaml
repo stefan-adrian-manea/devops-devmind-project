@@ -8,6 +8,6 @@ spec:
   selector:
     app: postgres
   ports:
-    - port: {{ .Values.database.port }}
-      targetPort: {{ .Values.database.port }}
+    - port: {{ $postgresPort }}
+      targetPort: {{ $postgresPort }}
   type: ClusterIP

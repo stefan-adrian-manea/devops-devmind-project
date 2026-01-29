@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ocr-service
+  labels:
+    app: ocr-service
+spec:
+  replicas: {{ .Values.ocr.replicas }}
+  selector:
+    matchLabels:
+      app: ocr-service
+  template:
+    metadata:
+      labels:
+        app: ocr-service
+    spec:
+      containers:
+        - name: ocr-service
+          image: "{{ .Values.ocr.image }}:{{ .Values.ocr.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-ocr-config
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-minio-secret
+                  key: MINIO_ROOT_USER
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          ports:
+            - containerPort: {{ .Values.ocr.port }}
+          resources:
+            requests:
+              cpu: {{ .Values.ocr.resources.requests.cpu | quote }}
+              memory: {{ .Values.ocr.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.ocr.resources.limits.cpu | quote }}
+              memory: {{ .Values.ocr.resources.limits.memory | quote }}

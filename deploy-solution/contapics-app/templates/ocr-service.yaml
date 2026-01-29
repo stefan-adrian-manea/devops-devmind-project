@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ocr-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.ocr.port }}
+      targetPort: {{ .Values.ocr.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app: ocr-service

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ocr-config
+data:
+  AWS_S3_BUCKET_NAME: {{ .Values.minio.bucketName | quote }}
+  AWS_REGION: {{ .Values.ocr.env.region | quote }}
+  AWS_S3_ENDPOINT: "http://{{ .Release.Name }}-minio:{{ .Values.minio.ports.api }}"

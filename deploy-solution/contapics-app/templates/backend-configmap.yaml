@@ -9,3 +9,8 @@ data:
   DB_USERNAME: {{ .Values.database.user | quote }}
   CORS_ALLOWED_ORIGIN: {{ .Values.backend.env.corsOrigin | quote }}
   SPRING_PROFILES_ACTIVE: {{ .Values.backend.env.springProfile | quote }}
+
+  OCR_SERVICE_URL: "http://{{ .Release.Name }}-ocr-service:{{ .Values.ocr.port }}"
+  AWS_S3_ENDPOINT: "http://{{ .Release.Name }}-minio:{{ .Values.minio.ports.api }}"
+  AWS_S3_BUCKET_NAME: {{ .Values.minio.bucketName | quote }}
+  AWS_REGION: {{ .Values.minio.region | quote }}

@@ -27,14 +27,4 @@ spec:
                 name: {{ .Release.Name }}-frontend
                 port:
                   number: {{ .Values.frontend.port }}
-    - host: {{ .Values.ingress.minioHost | quote }}
-      http:
-        paths:
-          - path: {{ .Values.ingress.minioPath }}
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: {{ .Release.Name }}-minio
-                port:
-                  number: {{ .Values.minio.ports.console }}
 {{- end }}
