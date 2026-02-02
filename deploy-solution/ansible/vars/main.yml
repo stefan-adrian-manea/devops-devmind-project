@@ -1,0 +1,24 @@
+app_name: "contapics"
+app_version: "v1.0.0"
+namespace: "{{ app_name }}-{{ env }}"
+
+# DB
+db_storage: "{{ '5Gi' if env == 'prod' else '1Gi' }}"
+
+# Docker
+backend_image: "devops-contapics-backend"
+frontend_image: "devops-contapics-frontend"
+ocr_image: "devops-contapics-ocr"
+
+# Networking
+base_domain: "myapp.local"
+app_host: "{{ 'prod.' + base_domain if env == 'prod' else 'dev.' + base_domain }}"
+minio_host: "{{ 'minio-prod.' + base_domain if env == 'prod' else 'minio-dev.' + base_domain }}"
+
+monitoring_namespace: "monitoring"
+grafana_admin_password: "admin"
+grafana_host: "grafana.{{ env }}.myapp.local"
+monitoring_release_label: "prometheus-stack"
+monitoring_enabled: true
+label_backend: "backend"
+label_postgres_exporter: "contapics-postgres-exporter"

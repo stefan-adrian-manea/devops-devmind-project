@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-postgres-monitor
+  labels:
+    release: {{ .Values.monitoring.releaseLabel }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.labels.postgresExporter }}
+  endpoints:
+  - port: {{ .Values.monitoring.postgres.portName }}
+    path: {{ .Values.monitoring.postgres.path }}
+    interval: {{ .Values.monitoring.postgres.interval }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}

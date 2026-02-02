@@ -81,3 +81,19 @@ ingress:
   frontendPath: "/(.*)"
   minioPath: "/(.*)"
 
+monitoring:
+  releaseLabel: prometheus-stack
+  backend:
+    enabled: true
+    path: /actuator/prometheus
+    portName: http
+    interval: 15s
+  postgres:
+    enabled: true
+    path: /metrics
+    portName: metrics
+    interval: 15s
+
+labels:
+  backend: "backend"
+  postgresExporter: "contapics-postgres-exporter"

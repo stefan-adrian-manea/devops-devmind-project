@@ -1,0 +1,201 @@
+---
+- name: Deploy ContaPics Infrastructure and App
+  hosts: localhost
+  vars_files:
+    - vars/main.yml
+    - vars/secrets.yml
+  tasks:
+
+    - name: 0. Get current Terraform workspace
+      command: terraform workspace show
+      args:
+        chdir: "../terraform"
+      register: tf_workspace
+      changed_when: false
+
+    - name: Set env variable based on workspace
+      set_fact:
+        env: "{{ tf_workspace.stdout | trim }}"
+
+    - name: 1. Ensure Namespace via Terraform
+      community.general.terraform:
+        project_path: "../terraform"
+        state: present
+        force_init: yes
+        workspace: "{{ env }}"
+      register: tf_result
+
+    - name: 1.1 Add Prometheus Community Helm repo
+      kubernetes.core.helm_repository:
+        name: "prometheus-community"
+        repo_url: "https://prometheus-community.github.io/helm-charts"
+
+    - name: 1.2 Install Kube-Prometheus-Stack
+      kubernetes.core.helm:
+        name: "prometheus-stack"
+        chart_ref: "prometheus-community/kube-prometheus-stack"
+        release_namespace: "{{ monitoring_namespace }}"
+        create_namespace: yes
+        wait: yes
+        values:
+          prometheus:
+            prometheusSpec:
+              serviceMonitorSelectorNilUsesHelmValues: false
+              podMonitorSelectorNilUsesHelmValues: false
+              serviceMonitorNamespaceSelector: {} 
+              podMonitorNamespaceSelector: {}
+          grafana:
+            adminPassword: "{{ grafana_admin_password }}"
+            ingress:
+              ingressClassName: "nginx"
+              enabled: true
+              hosts:
+                - "{{ grafana_host }}"
+
+    - name: Wait for Prometheus Operator initialization
+      pause:
+        seconds: 30
+
+    - name: 2. Install or Update App Helm Chart
+      kubernetes.core.helm:
+        name: "contapics-app"
+        chart_ref: "../contapics-app"
+        release_namespace: "{{ namespace }}"
+        create_namespace: no
+        wait: yes
+        values:
+          database:
+            password: "{{ db_password }}"
+            persistence:
+              storage: "{{ db_storage }}"
+          backend:
+            image: "{{ backend_image }}"
+            tag: "{{ app_version }}"
+            env:
+              corsOrigin: "http://{{ app_host }}"
+          frontend:
+            image: "{{ frontend_image }}"
+            tag: "{{ app_version }}"
+            backendUrl: "http://{{ app_host }}/api"
+          ingress:
+            host: "{{ app_host }}"
+            minioHost: "{{ minio_host }}"
+          minio:
+            rootPassword: "{{ minio_password }}"
+          ocr:
+            image: "{{ ocr_image }}"
+            tag: "{{ app_version }}"
+            replicas: "{{ 2 if env == 'prod' else 1 }}"
+          monitoring:
+            releaseLabel: "{{ monitoring_release_label }}"
+            backend:
+              enabled: "{{ monitoring_enabled }}"
+            postgres:
+              enabled: "{{ monitoring_enabled }}"
+          labels:
+            backend: "{{ label_backend }}"
+            postgresExporter: "{{ label_postgres_exporter }}"
+
+    - name: 3. Verify if all Pods are Running
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ namespace }}"
+      register: pods
+      until: >
+        pods.resources is defined and
+        (
+          pods.resources
+          | selectattr('status.phase', 'equalto', 'Running')
+          | list
+          | length
+        ) >= 5
+      retries: 15
+      delay: 10
+
+    - name: 4. Display Access URLs
+      debug:
+        msg: 
+          - "App URL: http://{{ app_host }}"
+          - "MinIO URL: http://{{ minio_host }}"
+          - "Grafana URL: http://{{ grafana_host }}"
+          - "Namespace: {{ namespace }}"
+
+    - name: 5. Get Minikube IP
+      command: minikube ip
+      register: minikube_ip_cmd
+      changed_when: false
+
+    - name: 6. Configure /etc/hosts for project domains
+      become: yes
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: ".*{{ item }}$"
+        line: "{{ minikube_ip_cmd.stdout }} {{ item }}"
+        state: present
+      loop:
+        - "{{ app_host }}"
+        - "{{ minio_host }}"
+        - "{{ grafana_host }}"
+        - "myapp.local"
+
+    - name: 7. Create MinIO Bucket and set permissions
+      shell: |
+        # Identify MinIO pod dynamically
+        MINIO_POD=$(kubectl get pod -n {{ namespace }} -l app=minio -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec -n {{ namespace }} $MINIO_POD -- mc mb --ignore-existing /data/photos
+        kubectl exec -n {{ namespace }} $MINIO_POD -- mc anonymous set download /data/photos
+      register: minio_res
+      ignore_errors: yes
+
+    - name: 8. Connectivity and Health Checks
+      block:
+        - name: 8.1 Check Backend Health Endpoint
+          uri:
+            url: "http://{{ app_host }}/api/health"
+            status_code: 200
+          register: health_check
+          until: health_check.status == 200
+          retries: 12
+          delay: 10
+
+        - name: 8.2 Test API Login and Extract Token
+          uri:
+            url: "http://{{ app_host }}/api/auth/login"
+            method: POST
+            body_format: json
+            body:
+              username: "alice"
+              password: "alicepass"
+            status_code: [200, 201]
+          register: login_response
+
+        - name: 8.3 Set JWT Token Fact
+          set_fact:
+            jwt_token: "{{ login_response.json.token | default(login_response.json.accessToken) }}"
+
+        - name: 8.4 Test Photos Listing API
+          uri:
+            url: "http://{{ app_host }}/api/photos"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ jwt_token }}"
+            status_code: 200
+          register: photos_res
+
+        - name: 8.5 Display results
+          debug:
+            msg: "Success! API returned {{ photos_res.json | length }} photos."
+
+      rescue:
+        - name: Alert on verification failure
+          fail:
+            msg: "Health checks failed. Please check backend logs!"
+    
+    - name: 9. Start Background Port-Forward for Windows access
+      shell: "nohup kubectl port-forward -n ingress-nginx --address 0.0.0.0 deployment/ingress-nginx-controller 8888:80 > /tmp/pf.log 2>&1 &"
+      async: 10
+      poll: 0
+
+    - name: 10. Final confirmation
+      debug:
+        msg: "Deployment complete! Application accessible at http://{{ app_host }}:8888 (via PF) or http://{{ app_host }} (Direct Ingress)."

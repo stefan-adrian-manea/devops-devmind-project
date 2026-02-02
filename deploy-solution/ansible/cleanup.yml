@@ -1,0 +1,56 @@
+---
+- name: Cleanup ContaPics Environment
+  hosts: localhost
+  connection: local
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: 0. Get current Terraform workspace
+      command: terraform workspace show
+      args:
+        chdir: "../terraform"
+      register: tf_workspace
+      changed_when: false
+
+    - name: Set env variable based on workspace
+      set_fact:
+        env: "{{ tf_workspace.stdout | trim }}"
+
+    - name: 1. Kill residual Port-Forward processes
+      shell: "pkill -f 'kubectl port-forward' || true"
+      ignore_errors: yes
+
+    - name: 2. Uninstall Helm Release
+      kubernetes.core.helm:
+        name: "contapics-app"
+        release_namespace: "{{ namespace }}"
+        state: absent
+        wait: yes
+      ignore_errors: yes
+
+    - name: 3. Force delete all Persistent Volume Claims
+      shell: "kubectl delete pvc --all -n {{ namespace }} --timeout=30s"
+      ignore_errors: yes
+
+    - name: 4. Destroy Infrastructure via Terraform
+      community.general.terraform:
+        project_path: "../terraform"
+        state: absent
+        workspace: "{{ env }}"
+      register: tf_destroy
+
+    - name: 5. Clean up /etc/hosts for environment {{ env }}
+      become: yes
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: ".*{{ item }}$"
+        state: absent
+      loop:
+        - "{{ app_host }}"
+        - "{{ minio_host }}"
+        - "myapp.local"
+
+    - name: Final Message
+      debug:
+        msg: "Cleanup complete! Environment [{{ env }}] and namespace [{{ namespace }}] have been removed."
